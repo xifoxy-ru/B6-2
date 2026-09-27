@@ -1,27 +1,42 @@
-# B6-2 Git text generation
+# Git 변경 내용으로 커밋·PR 문안 만들기
 
-Python 3.10+ CLI for generating commit messages and pull request descriptions from a selected local Git diff. It uses only the Python standard library at runtime.
+이 도구는 선택한 로컬 Git 저장소의 변경 내용을 읽어 커밋 제목 또는 풀 리퀘스트(PR) 문안을 제안하는 명령줄 프로그램입니다. 변경 내용을 커밋하거나 PR을 생성하지 않습니다.
 
-From a Git repository, run `python3 /Users/sgang/bin/projects/B6-2/main.py commit` or replace `commit` with `pr`. The default selection is unstaged tracked changes. Add `--staged` to select the index. Untracked file contents are never read; stage new files to include their contents. A clean selection prints a no-change message without using a key or the network.
+## 준비와 실행
 
-Set `AI_API_KEY` in the process environment before generation. `OPENAI_API` is a fallback for the existing local credential naming. The CLI does not load `.env` files. `--model` defaults to `gpt-5-mini`; `--temperature` accepts 0–2 and `--max-tokens` a positive integer. Generation sends one request to `https://copa.codyssey.kr/v1/chat/completions`, with no automatic retry. A commit subject is limited to 72 characters. A PR title is limited to 80 characters and has `Why`, `What`, and `How to Test` bullet sections. The CLI validates the response and reports failure if it remains invalid.
+Python 3.10 이상과 Git이 필요합니다. 실행 시 Python 표준 라이브러리만 사용하므로 패키지를 추가로 설치할 필요가 없습니다. 이 저장소를 원하는 위치에 내려받거나 압축을 풀고, 문안을 만들 **대상 Git 저장소**로 이동해 실행하세요. 아래 예시에서 `TOOL_DIR`은 이 도구의 디렉터리이며, 원하는 이식 가능한 경로로 바꾸면 됩니다.
 
-Use `--dry-run` with either command to print the selected Git context and exact proposed request body as JSON, without key lookup or network access. The output can contain secrets already present in a tracked diff; inspect it before sharing. Generated text is based on the diff, and suggested test steps do not claim tests were run.
-
-`--convention path.json` selects an optional convention. The file must contain exactly four string fields, for example:
-
-```json
-{"type":"feat","scope":"portfolio","language":"en","style":"lowercase"}
+```sh
+cd /path/to/your-git-repository
+python3 /path/to/TOOL_DIR/main.py commit --dry-run
+python3 /path/to/TOOL_DIR/main.py commit
+python3 /path/to/TOOL_DIR/main.py pr --staged
 ```
 
-`type` is one of `feat`, `fix`, `docs`, `refactor`, `test`, `chore`; `scope` is a lowercase ASCII slug of 1–20 characters, beginning with a letter; `language` is `en` or `ko`; `style` is `lowercase` or `sentence`. The generated commit subject or PR title must begin with `type(scope): `; its description must contain an English letter and no Hangul for `en`, or contain Hangul for `ko`. Its first letter follows the selected case style and it has no final period. These are mechanical checks, not a full language or grammar judgment. The 72-character commit and 80-character PR title limits still apply, as do the PR bullet sections. Missing, malformed, or unsupported config fails before credential lookup or network access. Without this option the original format is used.
+실제 문안 생성에는 `AI_API_KEY` 환경 변수가 필요합니다. 비어 있거나 없으면 `OPENAI_API`를 대신 사용합니다. 예를 들어 실행 전에 `export AI_API_KEY='your-key'`로 설정할 수 있습니다. `.env` 파일은 자동으로 읽지 않습니다. 요청은 고정된 `https://copa.codyssey.kr/v1/chat/completions` 엔드포인트로 한 번 전송하며 자동 재시도하지 않습니다. 기본 모델은 `gpt-5-mini`이고 `--model`로 바꿀 수 있습니다.
 
-This example is inspired by a read-only look at B4-1's Git subjects: some use `feat:`, `fix:`, `docs:`, and `refactor`, while others are plain English phrases. Its README describes a portfolio project. B4-1 does not declare this JSON schema or a formal commit rule; `portfolio` and the style choice are examples for this tool.
+## 변경 내용 선택과 옵션
 
-`--safe-mode` masks common fake API key (`sk-...`), `api_key=`, `token=`, `password=`, and email patterns in the selected diff and visible paths before creating the request or preview. It also masks generated text and Git errors. Regex masking reduces exposure but cannot guarantee secrecy; inspect results before sharing. In safe mode, status entries are omitted from the preview so they cannot disclose paths outside the bounded diff. `--max-files` and `--max-lines` are positive limits, defaulting to 10 and 200. They apply to the selected tracked Git diff in safe mode: a file is a `diff --git` section, and a line is a physical diff line including headers, metadata, hunk lines, and binary patch lines. Sections are taken in order, with at most the remaining line budget from the final included section. The preview and API request use the same bounded diff and paths derived from it. `truncation` reports total, included, and dropped file sections and physical lines; a partially included final section counts as included, with its omitted lines counted as dropped. At most `max-files` untracked path names are displayed separately, with their dropped count. Untracked contents remain excluded. Renames, binary patches, and mode changes follow the same section and line rules. A very low line limit can leave only a file header; omitted content must not be inferred.
+`commit`은 커밋 제목, `pr`은 PR 제목과 본문을 제안합니다. 기본 선택은 스테이징되지 않은 추적 파일의 diff이며, `--staged`는 스테이징된 diff를 사용합니다. 추적되지 않은 파일은 미리보기에서 경로만 표시하고 내용은 읽지 않습니다. 새 파일의 내용을 포함하려면 먼저 `git add`로 스테이징한 다음 `--staged`를 사용하세요. 선택한 변경이 없으면 안내 문구를 출력하고 종료합니다. 추적되지 않은 파일만 있을 때 일반 생성은 스테이징 안내 오류를 출력합니다.
 
-Synthetic illustration, with no real credential: if a tracked diff contains `+token=FAKE_TOKEN`, `commit --dry-run` shows that placeholder, while `commit --dry-run --safe-mode` shows `+token=[REDACTED_SECRET]` in both the preview diff and proposed request. Safe mode also reports any dropped lines or files.
+`--dry-run`은 선택한 Git 내용과 제안된 요청 본문을 JSON으로 출력합니다. 이 모드에서는 API 키를 조회하거나 네트워크를 사용하지 않습니다. 추적 파일의 diff에 민감한 정보가 있으면 출력에도 포함될 수 있으므로 공유 전에 확인하세요.
 
-`main.py` is the entrypoint. The `b62` package separates local Git collection (`git_context`), masking and diff bounds (`safety`), convention loading (`conventions`), AI request and validation (`generation`), and CLI flow (`cli`).
+`--safe-mode`는 diff와 표시 경로의 일반적인 API 키, `api_key`, `token`, `password`, 이메일 패턴을 가리고, 요청과 미리보기에 사용하는 diff를 제한합니다. 생성 문안과 Git 오류도 마스킹합니다. 정규식 기반 마스킹은 모든 비밀을 찾는다고 보장하지 않습니다. 이 모드의 미리보기에는 범위 밖 경로가 드러나지 않도록 상태 목록을 생략합니다. `--max-files`(기본 10)와 `--max-lines`(기본 200)는 safe mode에서 선택된 추적 파일 diff에 적용하는 양의 정수 제한입니다. 파일은 `diff --git` 구간, 줄은 헤더와 메타데이터를 포함한 물리적 diff 줄입니다. 앞에서부터 담으며 마지막 파일 구간은 줄 제한에서 잘릴 수 있습니다. `truncation`에 전체·포함·제외된 파일 구간과 줄 수를 표시합니다. 추적되지 않은 경로도 최대 `max-files`개만 표시하고 제외 수를 알려 줍니다. 생략된 변경 내용은 문안에서 추정하면 안 됩니다.
 
-`make check` runs one Phase 4 aggregate suite containing copies of the earlier external behavior tests and module/subprocess checks. `make clean-cache` previews explicit cache paths at the project root and in `b62`; `make clean-cache APPLY=1` removes only regular listed paths and skips symlinks.
+`--temperature`는 0부터 2까지의 유한한 숫자, `--max-tokens`는 양의 정수를 받아 API 요청에 전달합니다. `--model`은 비어 있지 않아야 합니다. 각 명령의 전체 옵션은 `commit --help` 또는 `pr --help`에서 볼 수 있습니다.
+
+`--convention path.json`은 다음과 같이 네 문자열 필드가 정확히 있는 선택적 JSON 파일을 읽습니다.
+
+```json
+{"type":"feat","scope":"example","language":"en","style":"lowercase"}
+```
+
+`type`은 `feat`, `fix`, `docs`, `refactor`, `test`, `chore` 중 하나입니다. `scope`는 영문 소문자로 시작하고 소문자·숫자·하이픈으로 이루어진 1~20자 문자열입니다. `language`는 `en` 또는 `ko`, `style`은 `lowercase` 또는 `sentence`입니다. 제목은 `type(scope): `로 시작해야 합니다. 설명 부분에서 `en`은 영문자를 포함하고 한글을 포함하지 않아야 하며, `ko`는 한글을 포함해야 합니다. 첫 글자의 대소문자와 끝 마침표도 기계적으로 검사하지만 완전한 문법 검사는 아닙니다. 파일이 없거나 형식이 잘못되면 API 키 조회 전에 오류가 납니다.
+
+## 출력과 한계
+
+커밋 제목은 최대 72자이며 변경 파일 이름을 포함해야 합니다. 파일 이름이 지나치게 길 때는 파일을 구체적으로 설명할 수 있습니다. PR 제목은 최대 80자이고 본문에 `Why`, `What`, `How to Test` 목록이 들어갑니다. `What`에는 변경 파일 경로가 있어야 하며 테스트 항목은 실행 결과가 아니라 제안 단계입니다. 응답 형식과 파일 근거를 검사하고 유효하지 않으면 오류를 출력합니다. 문안은 선택된 diff에만 근거하므로 특히 diff가 잘렸다면 원본 변경 내용과 대조해 사용하세요.
+
+`main.py`가 진입점입니다. `b62/git_context.py`는 Git 변경 수집, `b62/safety.py`는 마스킹과 diff 제한, `b62/conventions.py`는 문안 규칙 로드, `b62/generation.py`는 요청 구성·전송·검증, `b62/cli.py`는 명령 흐름을 담당합니다.
+
+`make check`는 표준 라이브러리만으로 구문 컴파일, 모듈 import, CLI 도움말을 확인하는 기본 스모크 검사입니다. 실제 생성 흐름이나 API 동작 전체를 검증하지는 않습니다. `make clean-cache`는 프로젝트 루트와 `b62`의 지정된 캐시 경로를 미리 보여 주고, `make clean-cache APPLY=1`은 해당 일반 경로만 삭제하며 심볼릭 링크는 건너뜁니다.

@@ -1,9 +1,11 @@
-# B6-2 Git text preparation (Phase 1)
+# B6-2 Git text generation
 
-Python 3.10+ CLI skeleton for collecting local Git context before future commit-message or pull-request text generation. It uses only the Python standard library at runtime. The `pyproject.toml` is ready for `uv`; no environment setup or package installation is required to run `main.py`.
+Python 3.10+ CLI for generating commit messages and pull request descriptions from a selected local Git diff. It uses only the Python standard library at runtime.
 
-From a Git repository, run `python3 /Users/sgang/bin/projects/B6-2/main.py commit --dry-run` or replace `commit` with `pr`. The default selection is unstaged changes. Add `--staged` to select the index instead. Dry-run prints proposed API input as JSON, including the selected diff, Git status, and untracked paths. Untracked file contents are not read. If only untracked files are present, the JSON includes a hint to stage them with `git add` so their contents appear in a staged diff. A clean selection prints a no-change message. Outside a repository, the CLI reports an error. Running without `--dry-run` reports that Phase 2 generation is unavailable.
+From a Git repository, run `python3 /Users/sgang/bin/projects/B6-2/main.py commit` or replace `commit` with `pr`. The default selection is unstaged tracked changes. Add `--staged` to select the index. Untracked file contents are never read; stage new files to include their contents. A clean selection prints a no-change message without using a key or the network.
 
-Dry-run stays local: there are no API calls, API-key lookups, or secret-file loading. The generated input may contain secrets already present in tracked diffs, so inspect it before sharing.
+Set `AI_API_KEY` in the process environment before generation. `OPENAI_API` is a fallback for the existing local credential naming. The CLI does not load `.env` files. `--model` defaults to `gpt-5-mini`; `--temperature` accepts 0–2 and `--max-tokens` a positive integer. Generation sends one request to `https://copa.codyssey.kr/v1/chat/completions`, with no automatic retry. A commit subject is limited to 72 characters. A PR title is limited to 80 characters and has `Why`, `What`, and `How to Test` bullet sections. The CLI validates the response and reports failure if it remains invalid.
 
-`make help` lists maintenance commands. `make check` runs the Phase 1 tests stored outside this product repository. `make clean-cache` previews explicit cache paths at the project root; `make clean-cache APPLY=1` removes only those paths.
+Use `--dry-run` with either command to print the selected Git context and exact proposed request body as JSON, without key lookup or network access. The output can contain secrets already present in a tracked diff; inspect it before sharing. Generated text is based on the diff, and suggested test steps do not claim tests were run.
+
+`make check` runs the Phase 2 external tests. `make clean-cache` previews explicit cache paths at the project root; `make clean-cache APPLY=1` removes only those paths.

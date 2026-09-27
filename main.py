@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 import urllib.error
@@ -85,9 +86,20 @@ def collect_context(cwd: Path, staged: bool) -> dict[str, object]:
 def changed_paths(diff: str) -> list[str]:
     paths = []
     for line in diff.splitlines():
-        if line.startswith("+++ b/"):
-            paths.append(line[6:])
-        elif line.startswith("--- a/") and line[6:] not in paths:
+        if line.startswith("diff --git "):
+            header = line[len("diff --git "):]
+            try:
+                sides = shlex.split(header)
+            except ValueError:
+                sides = []
+            if len(sides) == 2 and sides[0].startswith("a/") and sides[1].startswith("b/"):
+                paths.extend((sides[0][2:], sides[1][2:]))
+            elif header.startswith("a/") and " b/" in header:
+                left, right = header.rsplit(" b/", 1)
+                paths.extend((left[2:], right))
+        elif line.startswith(("rename to ", "copy to ")):
+            paths.append(line.split(" ", 2)[2])
+        elif line.startswith(("+++ b/", "--- a/")):
             paths.append(line[6:])
     return list(dict.fromkeys(paths))
 
@@ -99,7 +111,9 @@ def build_request(task: str, context: dict[str, object], model: str,
     if task == "commit":
         format_rule = (
             'Return only a JSON object with one string field: "subject". '
-            "The subject must be at most 72 characters and name at least one changed file."
+            "The subject must be at most 72 characters. Name a changed file when "
+            "its name fits; for an exceptionally long file name, describe the "
+            "specific change concisely without fabricating details."
         )
     else:
         format_rule = (
@@ -197,7 +211,14 @@ def validate_output(task: str, content: str, diff: str) -> str:
         output = "\n".join([title, "", "## Why", *[f"- {x}" for x in why],
                             "", "## What", *[f"- {x}" for x in what],
                             "", "## How to Test", *[f"- {x}" for x in how]])
-    if not any(path and path in grounding for path in paths):
+    path_names = [Path(path).name for path in paths]
+    if task == "commit":
+        fits = [name for name in path_names if len(name) <= 72]
+        grounded = (any(name and name in grounding for name in fits)
+                    if fits else bool(re.search(r"\bfile\b", grounding, re.IGNORECASE)))
+    else:
+        grounded = any(path and path in grounding for path in paths)
+    if not grounded:
         raise GenerationError("Invalid generated output: no changed file referenced.")
     if re.search(r"\b(?:tests? (?:passed|ran|were run|succeeded)|verified|validation passed|"
                  r"all checks pass(?:ed)?)\b", output, re.IGNORECASE):

@@ -28,9 +28,12 @@ class GenerationError(Exception):
 
 
 TYPES = {"feat", "fix", "docs", "refactor", "test", "chore"}
+ASSIGNMENT_MASK = re.compile(
+    r"""\b(?P<prefix>(?:api[_-]?key|token|password)['"]?[ \t]*[:=][ \t]*)
+         (?P<value>"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s,;"']+)""",
+    re.I | re.X,
+)
 MASKS = (
-    (re.compile(r"\b((?:api[_-]?key|token|password)['\"]?[ \t]*[:=][ \t]*['\"]?)([^\s,;\"']+)", re.I),
-     r"\1[REDACTED_SECRET]"),
     (re.compile(r"\bsk-[A-Za-z0-9_-]{8,}\b"), "[REDACTED_API_KEY]"),
     (re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"),
      "[REDACTED_EMAIL]"),
@@ -38,6 +41,12 @@ MASKS = (
 
 
 def mask(value: str) -> str:
+    def replace_assignment(match: re.Match[str]) -> str:
+        found = match.group("value")
+        quote = found[0] if found[0] in ("'", '"') else ""
+        return match.group("prefix") + quote + "[REDACTED_SECRET]" + quote
+
+    value = ASSIGNMENT_MASK.sub(replace_assignment, value)
     for pattern, replacement in MASKS:
         value = pattern.sub(replacement, value)
     return value

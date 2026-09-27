@@ -8,4 +8,18 @@ Set `AI_API_KEY` in the process environment before generation. `OPENAI_API` is a
 
 Use `--dry-run` with either command to print the selected Git context and exact proposed request body as JSON, without key lookup or network access. The output can contain secrets already present in a tracked diff; inspect it before sharing. Generated text is based on the diff, and suggested test steps do not claim tests were run.
 
-`make check` runs the Phase 2 external tests. `make clean-cache` previews explicit cache paths at the project root; `make clean-cache APPLY=1` removes only those paths.
+`--convention path.json` selects an optional convention. The file must contain exactly four string fields, for example:
+
+```json
+{"type":"feat","scope":"portfolio","language":"en","style":"lowercase"}
+```
+
+`type` is one of `feat`, `fix`, `docs`, `refactor`, `test`, `chore`; `scope` is a lowercase ASCII slug of 1–20 characters, beginning with a letter; `language` is `en` or `ko`; `style` is `lowercase` or `sentence`. The generated commit subject or PR title must begin with `type(scope): `; its description must contain an English letter and no Hangul for `en`, or contain Hangul for `ko`. Its first letter follows the selected case style and it has no final period. These are mechanical checks, not a full language or grammar judgment. The 72-character commit and 80-character PR title limits still apply, as do the PR bullet sections. Missing, malformed, or unsupported config fails before credential lookup or network access. Without this option the original format is used.
+
+This example is inspired by a read-only look at B4-1's Git subjects: some use `feat:`, `fix:`, `docs:`, and `refactor`, while others are plain English phrases. Its README describes a portfolio project. B4-1 does not declare this JSON schema or a formal commit rule; `portfolio` and the style choice are examples for this tool.
+
+`--safe-mode` masks common fake API key (`sk-...`), `api_key=`, `token=`, `password=`, and email patterns in the selected diff and visible paths before creating the request or preview. It also masks generated text and Git errors. Regex masking reduces exposure but cannot guarantee secrecy; inspect results before sharing. In safe mode, status entries are omitted from the preview so they cannot disclose paths outside the bounded diff. `--max-files` and `--max-lines` are positive limits, defaulting to 10 and 200. They apply to the selected tracked Git diff in safe mode: a file is a `diff --git` section, and a line is a physical diff line including headers, metadata, hunk lines, and binary patch lines. Sections are taken in order, with at most the remaining line budget from the final included section. The preview and API request use the same bounded diff and paths derived from it. `truncation` reports total, included, and dropped file sections and physical lines; a partially included final section counts as included, with its omitted lines counted as dropped. At most `max-files` untracked path names are displayed separately, with their dropped count. Untracked contents remain excluded. Renames, binary patches, and mode changes follow the same section and line rules. A very low line limit can leave only a file header; omitted content must not be inferred.
+
+Synthetic illustration, with no real credential: if a tracked diff contains `+token=FAKE_TOKEN`, `commit --dry-run` shows that placeholder, while `commit --dry-run --safe-mode` shows `+token=[REDACTED_SECRET]` in both the preview diff and proposed request. Safe mode also reports any dropped lines or files.
+
+`make check` runs the Phase 2 and Phase 3 external tests. `make clean-cache` previews explicit cache paths at the project root; `make clean-cache APPLY=1` removes only those paths.

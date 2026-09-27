@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 import json
 import os
 import re
@@ -24,6 +25,78 @@ class GitError(Exception):
 
 class GenerationError(Exception):
     """Generation failed without disclosing response or credential data."""
+
+
+TYPES = {"feat", "fix", "docs", "refactor", "test", "chore"}
+MASKS = (
+    (re.compile(r"\bsk-[A-Za-z0-9_-]{8,}\b"), "[REDACTED_API_KEY]"),
+    (re.compile(r"\b((?:api[_-]?key|token|password)\s*[:=]\s*)([^\s,;\"']+)", re.I),
+     r"\1[REDACTED_SECRET]"),
+    (re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"),
+     "[REDACTED_EMAIL]"),
+)
+
+
+def mask(value: str) -> str:
+    for pattern, replacement in MASKS:
+        value = pattern.sub(replacement, value)
+    return value
+
+
+def load_convention(path: str | None) -> dict[str, str] | None:
+    if path is None:
+        return None
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError):
+        raise GenerationError("Invalid convention config: cannot read a JSON object.") from None
+    if not isinstance(data, dict) or set(data) != {"type", "scope", "language", "style"}:
+        raise GenerationError("Invalid convention config: expected type, scope, language, style only.")
+    if (not isinstance(data["type"], str) or data["type"] not in TYPES
+            or not isinstance(data["scope"], str)
+            or not re.fullmatch(r"[a-z][a-z0-9-]{0,19}", data["scope"])
+            or not isinstance(data["language"], str) or data["language"] not in ("en", "ko")
+            or not isinstance(data["style"], str) or data["style"] not in ("lowercase", "sentence")):
+        raise GenerationError("Invalid convention config: unsupported selection.")
+    return data
+
+
+def bounded_diff(diff: str, max_files: int, max_lines: int) -> tuple[str, dict[str, int]]:
+    lines = diff.splitlines(keepends=True)
+    starts = [i for i, line in enumerate(lines) if line.startswith("diff --git ")]
+    if not starts and lines:
+        starts = [0]
+    chunks = [lines[start:end] for start, end in zip(starts, starts[1:] + [len(lines)])]
+    kept: list[str] = []
+    kept_files = 0
+    used_lines = 0
+    dropped_files = 0
+    dropped_lines = 0
+    for chunk in chunks:
+        if kept_files >= max_files or used_lines >= max_lines:
+            dropped_files += 1
+            dropped_lines += len(chunk)
+            continue
+        take = min(len(chunk), max_lines - used_lines)
+        kept.extend(chunk[:take])
+        used_lines += take
+        kept_files += 1
+        dropped_lines += len(chunk) - take
+    return "".join(kept), {"total_files": len(chunks), "included_files": kept_files,
+                            "dropped_files": dropped_files, "total_lines": len(lines),
+                            "included_lines": used_lines, "dropped_lines": dropped_lines}
+
+
+def safe_context(context: dict[str, object], max_files: int, max_lines: int) -> dict[str, object]:
+    # Sanitize before splitting so dropped sections cannot leak through metadata.
+    diff, counts = bounded_diff(mask(str(context["diff"])), max_files, max_lines)
+    untracked = [mask(p) for p in context["untracked_paths"]]
+    untracked_kept = untracked[:max_files]
+    counts["untracked_paths_dropped"] = len(untracked) - len(untracked_kept)
+    return {"repository": mask(str(context["repository"])),
+            "selection": context["selection"], "diff": diff,
+            "changed_paths": changed_paths(diff), "untracked_paths": untracked_kept,
+            "truncation": counts, "has_changes": context["has_changes"]}
 
 
 def git(cwd: Path, *args: str) -> bytes:
@@ -105,7 +178,8 @@ def changed_paths(diff: str) -> list[str]:
 
 
 def build_request(task: str, context: dict[str, object], model: str,
-                  temperature: float | None, max_tokens: int | None) -> dict[str, object]:
+                  temperature: float | None, max_tokens: int | None,
+                  convention: dict[str, str] | None = None) -> dict[str, object]:
     diff = str(context["diff"])
     paths = changed_paths(diff)
     if task == "commit":
@@ -128,8 +202,17 @@ def build_request(task: str, context: dict[str, object], model: str,
         "verified. Do not invent behavior, motivation, commands, or test results. "
         + format_rule
     )
+    if convention:
+        prefix = f'{convention["type"]}({convention["scope"]}): '
+        system += (f' Start the {"subject" if task == "commit" else "title"} with '
+                   f'{prefix!r}. Use {convention["language"]} language and '
+                   f'{convention["style"]} style for its description.')
+    if "truncation" in context:
+        system += " The supplied diff may be truncated; do not infer omitted changes."
     user = json.dumps({"selection": context["selection"], "changed_paths": paths,
-                       "diff": diff}, ensure_ascii=True)
+                       "diff": diff,
+                       **({"truncation": context["truncation"]} if "truncation" in context else {})},
+                      ensure_ascii=True)
     request: dict[str, object] = {
         "model": model,
         "messages": [{"role": "system", "content": system},
@@ -186,7 +269,8 @@ def _items(value: object, label: str) -> list[str]:
     return [_single_line(item, label, 1000) for item in value]
 
 
-def validate_output(task: str, content: str, diff: str) -> str:
+def validate_output(task: str, content: str, diff: str,
+                    convention: dict[str, str] | None = None) -> str:
     try:
         data = json.loads(content)
     except (ValueError, TypeError):
@@ -200,6 +284,7 @@ def validate_output(task: str, content: str, diff: str) -> str:
         subject = _single_line(data["subject"], "subject", 72)
         output = subject
         grounding = subject
+        heading = subject
     else:
         if set(data) != {"title", "why", "what", "how_to_test"}:
             raise GenerationError("Invalid generated PR fields.")
@@ -208,6 +293,7 @@ def validate_output(task: str, content: str, diff: str) -> str:
         what = _items(data["what"], "What")
         how = _items(data["how_to_test"], "How to Test")
         grounding = " ".join(what)
+        heading = title
         output = "\n".join([title, "", "## Why", *[f"- {x}" for x in why],
                             "", "## What", *[f"- {x}" for x in what],
                             "", "## How to Test", *[f"- {x}" for x in how]])
@@ -220,6 +306,22 @@ def validate_output(task: str, content: str, diff: str) -> str:
         grounded = any(path and path in grounding for path in paths)
     if not grounded:
         raise GenerationError("Invalid generated output: no changed file referenced.")
+    if convention:
+        prefix = f'{convention["type"]}({convention["scope"]}): '
+        if not heading.startswith(prefix):
+            raise GenerationError("Invalid generated output: convention prefix mismatch.")
+        description = heading[len(prefix):]
+        if not description or description != description.strip():
+            raise GenerationError("Invalid generated output: empty convention description.")
+        if convention["language"] == "ko":
+            language_ok = bool(re.search(r"[가-힣]", description))
+        else:
+            language_ok = bool(re.search(r"[A-Za-z]", description)) and not re.search(r"[가-힣]", description)
+        first = next((ch for ch in description if ch.isalpha()), "")
+        style_ok = (first == first.lower() if convention["style"] == "lowercase"
+                    else first == first.upper())
+        if not language_ok or not first or not style_ok or description.endswith("."):
+            raise GenerationError("Invalid generated output: convention language or style mismatch.")
     if re.search(r"\b(?:tests? (?:passed|ran|were run|succeeded)|verified|validation passed|"
                  r"all checks pass(?:ed)?)\b", output, re.IGNORECASE):
         raise GenerationError("Invalid generated output: unsupported test-result claim.")
@@ -237,22 +339,35 @@ def main(argv: list[str] | None = None) -> int:
         command.add_argument("--model", default=DEFAULT_MODEL)
         command.add_argument("--temperature", type=float)
         command.add_argument("--max-tokens", type=int)
+        command.add_argument("--convention", help="Path to a JSON convention config")
+        command.add_argument("--safe-mode", action="store_true")
+        command.add_argument("--max-files", type=int, default=10)
+        command.add_argument("--max-lines", type=int, default=200)
     args = parser.parse_args(argv)
-    if args.temperature is not None and not 0 <= args.temperature <= 2:
+    if args.temperature is not None and (not math.isfinite(args.temperature) or not 0 <= args.temperature <= 2):
         parser.error("--temperature must be between 0 and 2")
     if args.max_tokens is not None and args.max_tokens < 1:
         parser.error("--max-tokens must be positive")
     if not args.model.strip():
         parser.error("--model must be nonempty")
+    if args.max_files < 1 or args.max_lines < 1:
+        parser.error("--max-files and --max-lines must be positive")
+    try:
+        convention = load_convention(args.convention)
+    except GenerationError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 2
 
     try:
         context = collect_context(Path.cwd(), args.staged)
     except GitError as exc:
-        print(f"Error: {exc}", file=sys.stderr)
+        print(f"Error: {mask(str(exc)) if args.safe_mode else exc}", file=sys.stderr)
         return 2
     if not context["has_changes"]:
         print(f"No {context['selection']} changes to prepare.")
         return 0
+    if args.safe_mode:
+        context = safe_context(context, args.max_files, args.max_lines)
     proposed_input = {"task": args.command, **context}
     if context["untracked_paths"] and not context["diff"]:
         proposed_input["stage_hint"] = (
@@ -261,7 +376,9 @@ def main(argv: list[str] | None = None) -> int:
         )
     if context["diff"]:
         proposed_input["request"] = build_request(
-            args.command, context, args.model, args.temperature, args.max_tokens)
+            args.command, context, args.model, args.temperature, args.max_tokens, convention)
+    if convention:
+        proposed_input["convention"] = convention
     if args.dry_run:
         print(json.dumps(proposed_input, ensure_ascii=True, indent=2))
         return 0
@@ -275,7 +392,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     try:
         content = call_api(proposed_input["request"], key)
-        print(validate_output(args.command, content, str(context["diff"])))
+        output = validate_output(args.command, content, str(context["diff"]), convention)
+        print(mask(output) if args.safe_mode else output)
     except GenerationError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 2

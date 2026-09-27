@@ -22,4 +22,6 @@ This example is inspired by a read-only look at B4-1's Git subjects: some use `f
 
 Synthetic illustration, with no real credential: if a tracked diff contains `+token=FAKE_TOKEN`, `commit --dry-run` shows that placeholder, while `commit --dry-run --safe-mode` shows `+token=[REDACTED_SECRET]` in both the preview diff and proposed request. Safe mode also reports any dropped lines or files.
 
-`make check` runs the Phase 2 and Phase 3 external tests. `make clean-cache` previews explicit cache paths at the project root; `make clean-cache APPLY=1` removes only those paths.
+`main.py` is the entrypoint. The `b62` package separates local Git collection (`git_context`), masking and diff bounds (`safety`), convention loading (`conventions`), AI request and validation (`generation`), and CLI flow (`cli`).
+
+`make check` runs one Phase 4 aggregate suite containing copies of the earlier external behavior tests and module/subprocess checks. `make clean-cache` previews explicit cache paths at the project root and in `b62`; `make clean-cache APPLY=1` removes only regular listed paths and skips symlinks.

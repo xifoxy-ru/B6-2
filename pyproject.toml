@@ -1,0 +1,9 @@
+[project]
+name = "b6-2-git-text-prep"
+version = "0.1.0"
+description = "Local Git context CLI skeleton for future commit and PR text generation"
+requires-python = ">=3.10"
+dependencies = []
+
+[tool.uv]
+package = false

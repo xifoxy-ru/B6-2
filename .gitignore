@@ -1,0 +1,19 @@
+# Local agent instructions and state
+AGENTS.md
+.agents/
+.codex/
+
+# Python and tool caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+
+# Local secrets
+.env
+.env.*
+*.pem
+*.key
+secrets/

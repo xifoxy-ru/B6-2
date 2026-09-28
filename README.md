@@ -13,6 +13,19 @@ python3 /path/to/TOOL_DIR/main.py commit
 python3 /path/to/TOOL_DIR/main.py pr --staged
 ```
 
+이 도구 디렉터리에서는 Make 명령으로도 실행할 수 있습니다. `commit`과 `pr`은 문안만 생성하며 Git 커밋이나 PR을 만들지 않습니다. `preview-commit`과 `preview-pr`은 실제 변경 내용을 읽어 요청 JSON을 출력하지만 API 키 조회나 네트워크 요청은 하지 않습니다.
+
+```sh
+make preview-commit
+make preview-pr ARGS='--staged'
+make commit
+make pr ARGS='--staged --safe-mode'
+make preview-commit REPO='/path/to/target repo' ARGS='--staged --model example-model'
+make pr REPO='/path/to/target repo' ARGS='--staged'
+```
+
+`REPO`를 생략하면 현재 Make 작업 디렉터리의 저장소를 사용합니다. 다른 저장소를 지정할 때는 공백이 있는 경로도 위처럼 따옴표로 감싸세요. `ARGS`는 선택한 CLI 명령에 옵션을 전달합니다. 네 대상의 전체 옵션은 `python3 main.py commit --help` 또는 `python3 main.py pr --help`에서 확인할 수 있습니다.
+
 실제 문안 생성에는 `AI_API_KEY` 환경 변수가 필요합니다. 비어 있거나 없으면 `OPENAI_API`를 대신 사용합니다. 예를 들어 실행 전에 `export AI_API_KEY='your-key'`로 설정할 수 있습니다. `.env` 파일은 자동으로 읽지 않습니다. 요청은 고정된 `https://copa.codyssey.kr/v1/chat/completions` 엔드포인트로 한 번 전송하며 자동 재시도하지 않습니다. 기본 모델은 `gpt-5-mini`이고 `--model`로 바꿀 수 있습니다.
 
 ## 변경 내용 선택과 옵션

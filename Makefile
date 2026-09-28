@@ -1,10 +1,15 @@
 PYTHON ?= python3
+CLI := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))main.py)
+REPO ?= $(CURDIR)
 override CACHE_PATHS := __pycache__ b62/__pycache__ .pytest_cache .mypy_cache .ruff_cache
 
-.PHONY: help check clean-cache
+.PHONY: help check clean-cache commit pr preview-commit preview-pr
 
 help:
-	@printf '%s\n' 'Targets:' '  check                  Run local syntax/import/help smoke checks' '  clean-cache            Show local cache paths (dry-run)' '  clean-cache APPLY=1    Remove only listed local cache paths'
+	@printf '%s\n' 'Targets:' '  commit                 Generate commit text for REPO' '  pr                     Generate PR text for REPO' '  preview-commit         Show commit request JSON locally' '  preview-pr             Show PR request JSON locally' '  check                  Run local syntax/import/help smoke checks' '  clean-cache            Show local cache paths (dry-run)' '  clean-cache APPLY=1    Remove only listed local cache paths' 'Options: REPO=target-directory ARGS="--staged ..."'
+
+commit pr preview-commit preview-pr:
+	@cd "$(REPO)" && PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -B "$(CLI)" $(if $(filter commit preview-commit,$@),commit,pr) $(if $(filter preview-commit preview-pr,$@),--dry-run) $(ARGS)
 
 check:
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -B -c 'from pathlib import Path; files = [Path("main.py"), *Path("b62").glob("*.py")]; [compile(path.read_bytes(), str(path), "exec") for path in files]; print(f"Syntax OK: {len(files)} files")'

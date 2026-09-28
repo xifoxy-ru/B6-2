@@ -1,14 +1,23 @@
 PYTHON ?= python3
-PHASE4_TEST_DIR := ../../harness-workspaces/B6-2/phase4/tests
+CLI := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))main.py)
+REPO ?= $(CURDIR)
 override CACHE_PATHS := __pycache__ b62/__pycache__ .pytest_cache .mypy_cache .ruff_cache
 
-.PHONY: help check clean-cache
+.PHONY: help check clean-cache commit pr preview-commit preview-pr
 
 help:
-	@printf '%s\n' 'Targets:' '  check                  Run Phase 4 aggregate local tests' '  clean-cache            Show local cache paths (dry-run)' '  clean-cache APPLY=1    Remove only listed local cache paths'
+	@printf '%s\n' 'Targets:' '  commit                 Generate commit text for REPO' '  pr                     Generate PR text for REPO' '  preview-commit         Show commit request JSON locally' '  preview-pr             Show PR request JSON locally' '  check                  Run local syntax/import/help smoke checks' '  clean-cache            Show local cache paths (dry-run)' '  clean-cache APPLY=1    Remove only listed local cache paths' 'Options: REPO=target-directory ARGS="--staged ..."'
+
+commit pr preview-commit preview-pr:
+	@cd "$(REPO)" && PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -B "$(CLI)" $(if $(filter commit preview-commit,$@),commit,pr) $(if $(filter preview-commit preview-pr,$@),--dry-run) $(ARGS)
 
 check:
-	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest discover -s $(PHASE4_TEST_DIR) -v
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -B -c 'from pathlib import Path; files = [Path("main.py"), *Path("b62").glob("*.py")]; [compile(path.read_bytes(), str(path), "exec") for path in files]; print(f"Syntax OK: {len(files)} files")'
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -B -c 'import main, b62.cli, b62.conventions, b62.errors, b62.generation, b62.git_context, b62.safety; print("Imports OK")'
+	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -B main.py --help > /dev/null
+	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -B main.py commit --help > /dev/null
+	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -B main.py pr --help > /dev/null
+	@printf '%s\n' 'CLI help OK'
 
 clean-cache:
 	@for path in $(CACHE_PATHS); do \

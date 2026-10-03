@@ -53,3 +53,35 @@ make pr REPO='/path/to/target repo' ARGS='--staged'
 `main.py`가 진입점입니다. `b62/git_context.py`는 Git 변경 수집, `b62/safety.py`는 마스킹과 diff 제한, `b62/conventions.py`는 문안 규칙 로드, `b62/generation.py`는 요청 구성·전송·검증, `b62/cli.py`는 명령 흐름을 담당합니다.
 
 `make check`는 표준 라이브러리만으로 구문 컴파일, 모듈 import, CLI 도움말을 확인하는 기본 스모크 검사입니다. 실제 생성 흐름이나 API 동작 전체를 검증하지는 않습니다. `make clean-cache`는 프로젝트 루트와 `b62`의 지정된 캐시 경로를 미리 보여 주고, `make clean-cache APPLY=1`은 해당 일반 경로만 삭제하며 심볼릭 링크는 건너뜁니다.
+
+## 출력 예시
+
+아래는 형식을 보여 주기 위한 합성 예시입니다. `demo.txt`의 내용이 `blue`에서 `green`으로 바뀌었다고 가정하며, 두 명령 모두 스테이징된 `demo.txt` 변경을 전제로 합니다. 실제 API가 이 문안을 생성한 것이 아니며 테스트 실행 결과도 아닙니다.
+
+커밋 제목 예시:
+
+```text
+demo.txt의 색상 값을 green으로 변경
+```
+
+PR 제목과 본문 예시:
+
+```text
+demo.txt의 색상 값을 green으로 변경
+
+## Why
+- 예시 파일의 색상 값을 갱신합니다.
+
+## What
+- demo.txt에서 blue를 green으로 변경합니다.
+
+## How to Test
+- 스테이징된 demo.txt 변경을 확인합니다. 이 항목은 실행 결과가 아닌 제안입니다.
+```
+
+같은 스테이징 변경을 대상으로 문안을 요청하는 명령은 다음과 같습니다.
+
+```sh
+make commit REPO='/path/to/demo repo' ARGS='--staged'
+make pr REPO='/path/to/demo repo' ARGS='--staged'
+```

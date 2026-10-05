@@ -79,8 +79,9 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     try:
         content = call_api(proposed_input["request"], key)
-        output = validate_output(args.command, content, str(context["diff"]), convention)
-        print(mask(output) if args.safe_mode else output)
+        output = validate_output(args.command, content, str(context["diff"]), convention,
+                                 mask_text=mask if args.safe_mode else None)
+        print(output)
     except GenerationError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 2

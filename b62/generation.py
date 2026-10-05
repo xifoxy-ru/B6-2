@@ -20,12 +20,14 @@ def build_request(task: str, context: dict[str, object], model: str,
                   convention: dict[str, str] | None = None) -> dict[str, object]:
     diff = str(context["diff"])
     paths = changed_paths(diff)
+    prefix = f'{convention["type"]}({convention["scope"]}): ' if convention else ""
     if task == "commit":
         format_rule = (
             'Return only a JSON object with one string field: "subject". '
             "The subject must be at most 72 characters. Name a changed file when "
-            "its name fits; for an exceptionally long file name, describe the "
-            "specific change concisely without fabricating details."
+            f"its basename fits within {72 - len(prefix)} characters after the required "
+            "prefix. If no changed basename fits, describe the specific change "
+            "concisely using the word 'file' without fabricating details."
         )
     else:
         format_rule = (
@@ -41,7 +43,6 @@ def build_request(task: str, context: dict[str, object], model: str,
         + format_rule
     )
     if convention:
-        prefix = f'{convention["type"]}({convention["scope"]}): '
         system += (f' Start the {"subject" if task == "commit" else "title"} with '
                    f'{prefix!r}. Use {convention["language"]} language and '
                    f'{convention["style"]} style for its description.')
@@ -93,7 +94,7 @@ def call_api(payload: dict[str, object], key: str) -> str:
 def _single_line(value: object, label: str, limit: int) -> str:
     if not isinstance(value, str):
         raise GenerationError(f"Invalid generated {label}: expected text.")
-    value = " ".join(value.split())
+    value = re.sub(r"[\r\n\t\f\v\u2028\u2029]+", " ", value).strip()
     if not value or len(value) > limit:
         raise GenerationError(f"Invalid generated {label}: empty or exceeds {limit} characters.")
     return value
@@ -104,13 +105,19 @@ def _items(value: object, label: str) -> list[str]:
     return [_single_line(item, label, 1000) for item in value]
 
 def validate_output(task: str, content: str, diff: str,
-                    convention: dict[str, str] | None = None) -> str:
+                    convention: dict[str, str] | None = None,
+                    mask_text=None) -> str:
     try:
         data = json.loads(content)
     except (ValueError, TypeError):
         raise GenerationError("Invalid generated output: expected a JSON object.") from None
     if not isinstance(data, dict):
         raise GenerationError("Invalid generated output: expected a JSON object.")
+    if mask_text is not None:
+        data = {key: (mask_text(value) if isinstance(value, str) else
+                      [mask_text(item) if isinstance(item, str) else item for item in value]
+                      if isinstance(value, list) else value)
+                for key, value in data.items()}
     paths = changed_paths(diff)
     if task == "commit":
         if set(data) != {"subject"}:
@@ -133,7 +140,8 @@ def validate_output(task: str, content: str, diff: str,
                             "", "## How to Test", *[f"- {x}" for x in how]])
     path_names = [Path(path).name for path in paths]
     if task == "commit":
-        fits = [name for name in path_names if len(name) <= 72]
+        prefix = f'{convention["type"]}({convention["scope"]}): ' if convention else ""
+        fits = [name for name in path_names if len(name) <= 72 - len(prefix)]
         grounded = (any(name and name in grounding for name in fits)
                     if fits else bool(re.search(r"\bfile\b", grounding, re.IGNORECASE)))
     else:

@@ -50,7 +50,7 @@ make pr REPO='/path/to/target repo' ARGS='--staged'
 
 커밋 제목은 최대 72자이며 변경 파일 이름을 포함해야 합니다. 파일 이름이 지나치게 길 때는 파일을 구체적으로 설명할 수 있습니다. PR 제목은 최대 80자이고 본문에 `Why`, `What`, `How to Test` 목록이 들어갑니다. `What`에는 변경 파일 경로가 있어야 하며 테스트 항목은 실행 결과가 아니라 제안 단계입니다. 응답 형식과 파일 근거를 검사하고 유효하지 않으면 오류를 출력합니다. 문안은 선택된 diff에만 근거하므로 특히 diff가 잘렸다면 원본 변경 내용과 대조해 사용하세요.
 
-`main.py`가 진입점입니다. `b62/git_context.py`는 Git 변경 수집, `b62/safety.py`는 마스킹과 diff 제한, `b62/conventions.py`는 문안 규칙 로드, `b62/generation.py`는 요청 구성·전송·검증, `b62/cli.py`는 명령 흐름을 담당합니다.
+`main.py`가 진입점입니다. `b62/git_context.py`는 Git 변경 수집, `b62/safety.py`는 마스킹과 diff 제한, `b62/conventions.py`는 문안 규칙 로드, `b62/generation.py`는 요청 구성·검증, `b62/api_client.py`는 API 전송, `b62/cli.py`는 명령 흐름을 담당합니다.
 
 `make check`는 표준 라이브러리만으로 구문 컴파일, 모듈 import, CLI 도움말을 확인하는 기본 스모크 검사입니다. 실제 생성 흐름이나 API 동작 전체를 검증하지는 않습니다. `make clean`은 프로젝트 루트와 `b62`의 지정된 캐시 경로를 즉시 삭제하며 심볼릭 링크와 심볼릭 링크 아래 경로는 건너뜁니다.
 

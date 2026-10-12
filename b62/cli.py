@@ -7,10 +7,11 @@ import os
 import sys
 from pathlib import Path
 
+from .api_client import call_api
 from .cli_args import parse_cli_args
 from .conventions import load_convention
 from .errors import GenerationError, GitError
-from .generation import build_request, call_api, validate_output
+from .generation import build_request, validate_output
 from .git_context import collect_context
 from .safety import mask, safe_context
 

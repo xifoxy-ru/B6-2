@@ -52,7 +52,7 @@ make pr REPO='/path/to/target repo' ARGS='--staged'
 
 `main.py`가 진입점입니다. `b62/git_context.py`는 Git 변경 수집, `b62/safety.py`는 마스킹과 diff 제한, `b62/conventions.py`는 문안 규칙 로드, `b62/generation.py`는 요청 구성·전송·검증, `b62/cli.py`는 명령 흐름을 담당합니다.
 
-`make check`는 표준 라이브러리만으로 구문 컴파일, 모듈 import, CLI 도움말을 확인하는 기본 스모크 검사입니다. 실제 생성 흐름이나 API 동작 전체를 검증하지는 않습니다. `make clean-cache`는 프로젝트 루트와 `b62`의 지정된 캐시 경로를 미리 보여 주고, `make clean-cache APPLY=1`은 해당 일반 경로만 삭제하며 심볼릭 링크는 건너뜁니다.
+`make check`는 표준 라이브러리만으로 구문 컴파일, 모듈 import, CLI 도움말을 확인하는 기본 스모크 검사입니다. 실제 생성 흐름이나 API 동작 전체를 검증하지는 않습니다. `make clean`은 프로젝트 루트와 `b62`의 지정된 캐시 경로를 즉시 삭제하며 심볼릭 링크와 심볼릭 링크 아래 경로는 건너뜁니다.
 
 ## 출력 예시
 

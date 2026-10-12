@@ -3,10 +3,10 @@ CLI := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))main.py)
 REPO ?= $(CURDIR)
 override CACHE_PATHS := __pycache__ b62/__pycache__ .pytest_cache .mypy_cache .ruff_cache
 
-.PHONY: help check clean-cache commit pr preview-commit preview-pr
+.PHONY: help check clean commit pr preview-commit preview-pr
 
 help:
-	@printf '%s\n' 'Targets:' '  commit                 Generate commit text for REPO' '  pr                     Generate PR text for REPO' '  preview-commit         Show commit request JSON locally' '  preview-pr             Show PR request JSON locally' '  check                  Run local syntax/import/help smoke checks' '  clean-cache            Show local cache paths (dry-run)' '  clean-cache APPLY=1    Remove only listed local cache paths' 'Options: REPO=target-directory ARGS="--staged ..."'
+	@printf '%s\n' 'Targets:' '  commit                 Generate commit text for REPO' '  pr                     Generate PR text for REPO' '  preview-commit         Show commit request JSON locally' '  preview-pr             Show PR request JSON locally' '  check                  Run local syntax/import/help smoke checks' '  clean                  Remove only listed local cache paths' 'Options: REPO=target-directory ARGS="--staged ..."'
 
 commit pr preview-commit preview-pr:
 	@cd "$(REPO)" && PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -B "$(CLI)" $(if $(filter commit preview-commit,$@),commit,pr) $(if $(filter preview-commit preview-pr,$@),--dry-run) $(ARGS)
@@ -19,12 +19,10 @@ check:
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -B main.py pr --help > /dev/null
 	@printf '%s\n' 'CLI help OK'
 
-clean-cache:
+clean:
 	@for path in $(CACHE_PATHS); do \
 		if [ -e "$$path" ] || [ -L "$$path" ]; then \
 			if [ -L "$$path" ] || { [ "$$path" = "b62/__pycache__" ] && [ -L b62 ]; }; then printf 'Skipped symlink %s\n' "$$path"; \
-			elif [ "$(APPLY)" = "1" ]; then rm -rf -- "$$path"; printf 'Removed %s\n' "$$path"; \
-			else printf 'Would remove %s\n' "$$path"; fi; \
+			else rm -rf -- "$$path" || exit $$?; printf 'Removed %s\n' "$$path"; fi; \
 		fi; \
 	done
-	@if [ "$(APPLY)" != "1" ]; then printf '%s\n' 'Dry-run only. Use make clean-cache APPLY=1 to remove these cache paths.'; fi

@@ -15,7 +15,7 @@ from .generation import build_request, validate_output
 from .git_context import collect_context
 from .safety import mask, safe_context
 
-def main(argv: list[str] | None = None) -> int:
+def run(argv: list[str] | None = None) -> int:
     args = parse_cli_args(argv)
     try:
         convention = load_convention(args.convention)
@@ -64,3 +64,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Error: {exc}", file=sys.stderr)
         return 2
     return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    return run(argv)

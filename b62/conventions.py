@@ -9,6 +9,7 @@ from pathlib import Path
 from .errors import GenerationError
 
 TYPES = {"feat", "fix", "docs", "refactor", "test", "chore"}
+_SCOPE = re.compile(r"[a-z][a-z0-9-]{0,19}")
 
 def load_convention(path: str | None) -> dict[str, str] | None:
     if path is None:
@@ -21,7 +22,7 @@ def load_convention(path: str | None) -> dict[str, str] | None:
         raise GenerationError("Invalid convention config: expected type, scope, language, style only.")
     if (not isinstance(data["type"], str) or data["type"] not in TYPES
             or not isinstance(data["scope"], str)
-            or not re.fullmatch(r"[a-z][a-z0-9-]{0,19}", data["scope"])
+            or not _SCOPE.fullmatch(data["scope"])
             or not isinstance(data["language"], str) or data["language"] not in ("en", "ko")
             or not isinstance(data["style"], str) or data["style"] not in ("lowercase", "sentence")):
         raise GenerationError("Invalid convention config: unsupported selection.")

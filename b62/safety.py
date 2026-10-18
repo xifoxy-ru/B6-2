@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from .git_context import changed_paths
+from .git_context import DIFF_HEADER_PREFIX, changed_paths
 
 ASSIGNMENT_MASK = re.compile(
     r"""\b(?P<prefix>(?:api[_-]?key|token|password)['"]?[ \t]*[:=][ \t]*)
@@ -32,7 +32,7 @@ def mask(value: str) -> str:
 
 def bounded_diff(diff: str, max_files: int, max_lines: int) -> tuple[str, dict[str, int]]:
     lines = diff.splitlines(keepends=True)
-    starts = [i for i, line in enumerate(lines) if line.startswith("diff --git ")]
+    starts = [i for i, line in enumerate(lines) if line.startswith(DIFF_HEADER_PREFIX)]
     if not starts and lines:
         starts = [0]
     chunks = [lines[start:end] for start, end in zip(starts, starts[1:] + [len(lines)])]

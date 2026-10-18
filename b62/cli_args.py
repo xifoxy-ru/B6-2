@@ -7,6 +7,12 @@ import math
 
 from .generation import DEFAULT_MODEL
 
+DEFAULT_MAX_FILES = 10
+DEFAULT_MAX_LINES = 200
+MIN_TEMPERATURE = 0
+MAX_TEMPERATURE = 2
+MIN_POSITIVE_COUNT = 1
+
 
 def parse_cli_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate commit or PR text from a local Git diff.")
@@ -21,15 +27,18 @@ def parse_cli_args(argv: list[str] | None = None) -> argparse.Namespace:
         command.add_argument("--max-tokens", type=int)
         command.add_argument("--convention", help="Path to a JSON convention config")
         command.add_argument("--safe-mode", action="store_true")
-        command.add_argument("--max-files", type=int, default=10)
-        command.add_argument("--max-lines", type=int, default=200)
+        command.add_argument("--max-files", type=int, default=DEFAULT_MAX_FILES)
+        command.add_argument("--max-lines", type=int, default=DEFAULT_MAX_LINES)
     args = parser.parse_args(argv)
-    if args.temperature is not None and (not math.isfinite(args.temperature) or not 0 <= args.temperature <= 2):
+    if args.temperature is not None and (
+            not math.isfinite(args.temperature)
+            or not MIN_TEMPERATURE <= args.temperature <= MAX_TEMPERATURE):
         parser.error("--temperature must be between 0 and 2")
-    if args.max_tokens is not None and args.max_tokens < 1:
+    if args.max_tokens is not None and args.max_tokens < MIN_POSITIVE_COUNT:
         parser.error("--max-tokens must be positive")
     if not args.model.strip():
         parser.error("--model must be nonempty")
-    if args.max_files < 1 or args.max_lines < 1:
+    if (args.max_files < MIN_POSITIVE_COUNT
+            or args.max_lines < MIN_POSITIVE_COUNT):
         parser.error("--max-files and --max-lines must be positive")
     return args

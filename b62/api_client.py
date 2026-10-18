@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from http import HTTPStatus
 import urllib.error
 import urllib.request
 
@@ -21,9 +22,9 @@ def call_api(payload: dict[str, object], key: str) -> str:
         with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
             raw = response.read()
     except urllib.error.HTTPError as exc:
-        if exc.code in (401, 403):
+        if exc.code in (HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN):
             raise GenerationError("Authentication failed (HTTP 401/403). Check the API key.") from None
-        if exc.code == 429:
+        if exc.code == HTTPStatus.TOO_MANY_REQUESTS:
             raise GenerationError("Quota or rate limit exceeded (HTTP 429).") from None
         raise GenerationError(f"API request failed (HTTP {exc.code}).") from None
     except (TimeoutError, OSError) as exc:

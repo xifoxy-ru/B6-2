@@ -15,22 +15,26 @@ from .generation import build_request, validate_output
 from .git_context import collect_context
 from .safety import mask, safe_context
 
+EXIT_SUCCESS = 0
+EXIT_ERROR = 2
+JSON_INDENT = 2
+
 def run(argv: list[str] | None = None) -> int:
     args = parse_cli_args(argv)
     try:
         convention = load_convention(args.convention)
     except GenerationError as exc:
         print(f"Error: {exc}", file=sys.stderr)
-        return 2
+        return EXIT_ERROR
 
     try:
         context = collect_context(Path.cwd(), args.staged)
     except GitError as exc:
         print(f"Error: {mask(str(exc)) if args.safe_mode else exc}", file=sys.stderr)
-        return 2
+        return EXIT_ERROR
     if not context["has_changes"]:
         print(f"No {context['selection']} changes to prepare.")
-        return 0
+        return EXIT_SUCCESS
     if args.safe_mode:
         context = safe_context(context, args.max_files, args.max_lines)
     proposed_input = {"task": args.command, **context}
@@ -45,16 +49,16 @@ def run(argv: list[str] | None = None) -> int:
     if convention:
         proposed_input["convention"] = convention
     if args.dry_run:
-        print(json.dumps(proposed_input, ensure_ascii=True, indent=2))
-        return 0
+        print(json.dumps(proposed_input, ensure_ascii=True, indent=JSON_INDENT))
+        return EXIT_SUCCESS
     if not context["diff"]:
         print("Error: Only untracked paths are present; stage files to include their contents.",
               file=sys.stderr)
-        return 2
+        return EXIT_ERROR
     key = os.environ.get("AI_API_KEY") or os.environ.get("OPENAI_API")
     if not key:
         print("Error: Set AI_API_KEY (or OPENAI_API) in the environment.", file=sys.stderr)
-        return 2
+        return EXIT_ERROR
     try:
         content = call_api(proposed_input["request"], key)
         output = validate_output(args.command, content, str(context["diff"]), convention,
@@ -62,8 +66,8 @@ def run(argv: list[str] | None = None) -> int:
         print(output)
     except GenerationError as exc:
         print(f"Error: {exc}", file=sys.stderr)
-        return 2
-    return 0
+        return EXIT_ERROR
+    return EXIT_SUCCESS
 
 
 def main(argv: list[str] | None = None) -> int:

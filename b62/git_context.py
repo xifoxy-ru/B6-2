@@ -8,6 +8,19 @@ from pathlib import Path
 
 from .errors import GitError
 
+STATUS_RENAMED = "R"
+STATUS_COPIED = "C"
+STATUS_UNTRACKED = "??"
+PORCELAIN_STATUS_WIDTH = 2
+PORCELAIN_PATH_OFFSET = PORCELAIN_STATUS_WIDTH + len(" ")
+DIFF_HEADER_PREFIX = "diff --git "
+DIFF_OLD_PATH_PREFIX = "a/"
+DIFF_NEW_PATH_PREFIX = "b/"
+DIFF_PATH_COUNT = 2
+DIFF_FALLBACK_SEPARATOR = " " + DIFF_NEW_PATH_PREFIX
+DESTINATION_PREFIXES = ("rename to ", "copy to ")
+FILE_HEADER_PREFIXES = ("+++ b/", "--- a/")
+
 def git(cwd: Path, *args: str) -> bytes:
     command = ["git", "-c", "core.quotepath=false", *args]
     try:
@@ -31,9 +44,11 @@ def status_entries(raw: bytes) -> list[dict[str, str]]:
     index = 0
     while index < len(entries) and entries[index]:
         entry = entries[index]
-        code, path = entry[:2], entry[3:]
+        # Porcelain v1 records contain an XY status, one space, then the path.
+        code, path = entry[:PORCELAIN_STATUS_WIDTH], entry[PORCELAIN_PATH_OFFSET:]
         item = {"code": code, "path": path}
-        if "R" in code or "C" in code:
+        if STATUS_RENAMED in code or STATUS_COPIED in code:
+            # With -z, rename/copy records put the original path in the next entry.
             index += 1
             item["original_path"] = entries[index]
         result.append(item)
@@ -51,7 +66,7 @@ def collect_context(cwd: Path, staged: bool) -> dict[str, object]:
     if staged:
         diff_args.append("--cached")
     diff = git_text(root, *diff_args)
-    untracked = [] if staged else [item["path"] for item in status if item["code"] == "??"]
+    untracked = [] if staged else [item["path"] for item in status if item["code"] == STATUS_UNTRACKED]
     return {
         "repository": str(root),
         "selection": "staged" if staged else "unstaged",
@@ -64,19 +79,24 @@ def collect_context(cwd: Path, staged: bool) -> dict[str, object]:
 def changed_paths(diff: str) -> list[str]:
     paths = []
     for line in diff.splitlines():
-        if line.startswith("diff --git "):
-            header = line[len("diff --git "):]
+        if line.startswith(DIFF_HEADER_PREFIX):
+            header = line[len(DIFF_HEADER_PREFIX):]
             try:
                 sides = shlex.split(header)
             except ValueError:
                 sides = []
-            if len(sides) == 2 and sides[0].startswith("a/") and sides[1].startswith("b/"):
-                paths.extend((sides[0][2:], sides[1][2:]))
-            elif header.startswith("a/") and " b/" in header:
-                left, right = header.rsplit(" b/", 1)
-                paths.extend((left[2:], right))
-        elif line.startswith(("rename to ", "copy to ")):
-            paths.append(line.split(" ", 2)[2])
-        elif line.startswith(("+++ b/", "--- a/")):
-            paths.append(line[6:])
+            if (len(sides) == DIFF_PATH_COUNT
+                    and sides[0].startswith(DIFF_OLD_PATH_PREFIX)
+                    and sides[1].startswith(DIFF_NEW_PATH_PREFIX)):
+                paths.extend((sides[0][len(DIFF_OLD_PATH_PREFIX):],
+                              sides[1][len(DIFF_NEW_PATH_PREFIX):]))
+            elif header.startswith(DIFF_OLD_PATH_PREFIX) and DIFF_FALLBACK_SEPARATOR in header:
+                left, right = header.rsplit(DIFF_FALLBACK_SEPARATOR, 1)
+                paths.extend((left[len(DIFF_OLD_PATH_PREFIX):], right))
+        elif line.startswith(DESTINATION_PREFIXES):
+            prefix = next(prefix for prefix in DESTINATION_PREFIXES if line.startswith(prefix))
+            paths.append(line[len(prefix):])
+        elif line.startswith(FILE_HEADER_PREFIXES):
+            prefix = next(prefix for prefix in FILE_HEADER_PREFIXES if line.startswith(prefix))
+            paths.append(line[len(prefix):])
     return list(dict.fromkeys(paths))

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from http import HTTPStatus
+from http.client import HTTPException
 import urllib.error
 import urllib.request
 
@@ -31,6 +32,8 @@ def call_api(payload: dict[str, object], key: str) -> str:
         if isinstance(exc, TimeoutError) or "timed out" in str(exc).lower():
             raise GenerationError("API request timed out.") from None
         raise GenerationError("Network error while contacting the API.") from None
+    except HTTPException:
+        raise GenerationError("HTTP protocol error while reading the API response.") from None
     try:
         response = json.loads(raw)
         content = response["choices"][0]["message"]["content"]

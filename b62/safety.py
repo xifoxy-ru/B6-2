@@ -7,7 +7,7 @@ import re
 from .git_context import DIFF_HEADER_PREFIX, changed_paths
 
 ASSIGNMENT_MASK = re.compile(
-    r"""\b(?P<prefix>(?:api[_-]?key|token|password)['"]?[ \t]*[:=][ \t]*)
+    r"""\b(?P<prefix>(?:ai_api_key|openai_api|api[_-]?key|token|password)['"]?[ \t]*[:=][ \t]*)
          (?P<value>"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s,;"']+)""",
     re.I | re.X,
 )

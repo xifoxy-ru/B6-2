@@ -18,6 +18,7 @@ from .safety import mask, safe_context
 EXIT_SUCCESS = 0
 EXIT_ERROR = 2
 JSON_INDENT = 2
+COMMIT_HEADER = "## Commit"
 
 def run(argv: list[str] | None = None) -> int:
     args = parse_cli_args(argv)
@@ -63,6 +64,8 @@ def run(argv: list[str] | None = None) -> int:
         output = generate_validated_output(
             args.command, proposed_input["request"], key, str(context["diff"]), convention,
             mask_text=mask if args.safe_mode else None, api_call=call_api)
+        if args.command == "commit":
+            print(COMMIT_HEADER)
         print(output)
     except GenerationError as exc:
         print(f"Error: {exc}", file=sys.stderr)

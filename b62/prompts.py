@@ -36,3 +36,13 @@ def system_message(task: str, convention: dict[str, str] | None,
     if truncated:
         system += " The supplied diff may be truncated; do not infer omitted changes."
     return system
+
+
+def format_correction_message() -> str:
+    """Give fixed feedback without echoing generated or external text."""
+    return (
+        "The generated output failed JSON, field, list, text, or length validation. "
+        "Generate a replacement using the original diff and all original instructions. "
+        "Return exactly the required JSON fields, with nonempty text and lists, "
+        "within the stated length limits."
+    )

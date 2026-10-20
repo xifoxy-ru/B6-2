@@ -11,7 +11,7 @@ from .api_client import call_api
 from .cli_args import parse_cli_args
 from .conventions import load_convention
 from .errors import GenerationError, GitError
-from .generation import build_request, validate_output
+from .generation import build_request, generate_validated_output
 from .git_context import collect_context
 from .safety import mask, safe_context
 
@@ -60,9 +60,9 @@ def run(argv: list[str] | None = None) -> int:
         print("Error: Set AI_API_KEY (or OPENAI_API) in the environment.", file=sys.stderr)
         return EXIT_ERROR
     try:
-        content = call_api(proposed_input["request"], key)
-        output = validate_output(args.command, content, str(context["diff"]), convention,
-                                 mask_text=mask if args.safe_mode else None)
+        output = generate_validated_output(
+            args.command, proposed_input["request"], key, str(context["diff"]), convention,
+            mask_text=mask if args.safe_mode else None, api_call=call_api)
         print(output)
     except GenerationError as exc:
         print(f"Error: {exc}", file=sys.stderr)

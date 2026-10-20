@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
+from copy import deepcopy
 from pathlib import Path
 
 from .api_client import call_api
-from .errors import GenerationError
+from .errors import GenerationError, OutputFormatError
 from .git_context import changed_paths
-from .limits import COMMIT_SUBJECT_LIMIT, PR_ITEM_LIMIT, PR_TITLE_LIMIT
-from .prompts import system_message
+from .limits import (COMMIT_SUBJECT_LIMIT, GENERATION_ATTEMPT_LIMIT,
+                     PR_ITEM_LIMIT, PR_TITLE_LIMIT)
+from .prompts import format_correction_message, system_message
 
 DEFAULT_MODEL = "gpt-5-mini"
 
@@ -46,15 +49,15 @@ def build_request(task: str, context: dict[str, object], model: str,
 
 def _single_line(value: object, label: str, limit: int) -> str:
     if not isinstance(value, str):
-        raise GenerationError(f"Invalid generated {label}: expected text.")
+        raise OutputFormatError(f"Invalid generated {label}: expected text.")
     value = _CONTROL_WHITESPACE.sub(" ", value).strip()
     if not value or len(value) > limit:
-        raise GenerationError(f"Invalid generated {label}: empty or exceeds {limit} characters.")
+        raise OutputFormatError(f"Invalid generated {label}: empty or exceeds {limit} characters.")
     return value
 
 def _items(value: object, label: str) -> list[str]:
     if not isinstance(value, list) or not value:
-        raise GenerationError(f"Invalid generated {label}: expected nonempty list.")
+        raise OutputFormatError(f"Invalid generated {label}: expected nonempty list.")
     return [_single_line(item, label, PR_ITEM_LIMIT) for item in value]
 
 def validate_output(task: str, content: str, diff: str,
@@ -63,9 +66,9 @@ def validate_output(task: str, content: str, diff: str,
     try:
         data = json.loads(content)
     except (ValueError, TypeError):
-        raise GenerationError("Invalid generated output: expected a JSON object.") from None
+        raise OutputFormatError("Invalid generated output: expected a JSON object.") from None
     if not isinstance(data, dict):
-        raise GenerationError("Invalid generated output: expected a JSON object.")
+        raise OutputFormatError("Invalid generated output: expected a JSON object.")
     if mask_text is not None:
         data = {key: (mask_text(value) if isinstance(value, str) else
                       [mask_text(item) if isinstance(item, str) else item for item in value]
@@ -74,14 +77,14 @@ def validate_output(task: str, content: str, diff: str,
     paths = changed_paths(diff)
     if task == "commit":
         if set(data) != {"subject"}:
-            raise GenerationError("Invalid generated commit fields.")
+            raise OutputFormatError("Invalid generated commit fields.")
         subject = _single_line(data["subject"], "subject", COMMIT_SUBJECT_LIMIT)
         output = subject
         grounding = subject
         heading = subject
     else:
         if set(data) != {"title", "why", "what", "how_to_test"}:
-            raise GenerationError("Invalid generated PR fields.")
+            raise OutputFormatError("Invalid generated PR fields.")
         title = _single_line(data["title"], "title", PR_TITLE_LIMIT)
         why = _items(data["why"], "Why")
         what = _items(data["what"], "What")
@@ -120,3 +123,25 @@ def validate_output(task: str, content: str, diff: str,
     if _UNSUPPORTED_TEST_CLAIM.search(output):
         raise GenerationError("Invalid generated output: unsupported test-result claim.")
     return output
+
+
+def generate_validated_output(
+        task: str, request: dict[str, object], key: str, diff: str,
+        convention: dict[str, str] | None = None, mask_text=None,
+        api_call: Callable[[dict[str, object], str], str] | None = None) -> str:
+    """Regenerate a format failure once; transport and semantic failures stop."""
+    transport = call_api if api_call is None else api_call
+    attempt_request = request
+    for attempt in range(GENERATION_ATTEMPT_LIMIT):
+        # Transport errors are outside the validation catch and never retried.
+        content = transport(attempt_request, key)
+        try:
+            return validate_output(task, content, diff, convention, mask_text)
+        except OutputFormatError:
+            if attempt + 1 == GENERATION_ATTEMPT_LIMIT:
+                raise
+            # Preserve the original request and omit all rejected response text.
+            attempt_request = deepcopy(request)
+            attempt_request["messages"].append(
+                {"role": "user", "content": format_correction_message()})
+    raise AssertionError("Generation attempt limit must be positive.")

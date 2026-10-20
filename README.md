@@ -26,7 +26,7 @@ make pr REPO='/path/to/target repo' ARGS='--staged'
 
 `REPO`를 생략하면 현재 Make 작업 디렉터리의 저장소를 사용합니다. 다른 저장소를 지정할 때는 공백이 있는 경로도 위처럼 따옴표로 감싸세요. `ARGS`는 선택한 CLI 명령에 옵션을 전달합니다. 네 대상의 전체 옵션은 `python3 main.py commit --help` 또는 `python3 main.py pr --help`에서 확인할 수 있습니다.
 
-실제 문안 생성에는 `AI_API_KEY` 환경 변수가 필요합니다. 비어 있거나 없으면 `OPENAI_API`를 대신 사용합니다. 예를 들어 실행 전에 `export AI_API_KEY='your-key'`로 설정할 수 있습니다. `.env` 파일은 자동으로 읽지 않습니다. 요청은 고정된 `https://copa.codyssey.kr/v1/chat/completions` 엔드포인트로 한 번 전송하며 자동 재시도하지 않습니다. 기본 모델은 `gpt-5-mini`이고 `--model`로 바꿀 수 있습니다.
+실제 문안 생성에는 `AI_API_KEY` 환경 변수가 필요합니다. 비어 있거나 없으면 `OPENAI_API`를 대신 사용합니다. 예를 들어 실행 전에 `export AI_API_KEY='your-key'`로 설정할 수 있습니다. `.env` 파일은 자동으로 읽지 않습니다. 요청은 고정된 `https://copa.codyssey.kr/v1/chat/completions` 엔드포인트로 전송합니다. 생성 응답의 JSON·필드·목록 형식이나 길이가 잘못되면 한 번만 다시 생성하므로 최대 두 번 호출합니다. 네트워크·인증·API 전송 오류는 재시도하지 않습니다. 기본 모델은 `gpt-5-mini`이고 `--model`로 바꿀 수 있습니다.
 
 ## 변경 내용 선택과 옵션
 
@@ -48,9 +48,9 @@ make pr REPO='/path/to/target repo' ARGS='--staged'
 
 ## 출력과 한계
 
-커밋 제목은 최대 72자이며 변경 파일 이름을 포함해야 합니다. 파일 이름이 지나치게 길 때는 파일을 구체적으로 설명할 수 있습니다. PR 제목은 최대 80자이고 본문에 `Why`, `What`, `How to Test` 목록이 들어갑니다. `What`에는 변경 파일 경로가 있어야 하며 테스트 항목은 실행 결과가 아니라 제안 단계입니다. 응답 형식과 파일 근거를 검사하고 유효하지 않으면 오류를 출력합니다. 문안은 선택된 diff에만 근거하므로 특히 diff가 잘렸다면 원본 변경 내용과 대조해 사용하세요.
+커밋 제목은 최대 72자이며 변경 파일 이름을 포함해야 합니다. 파일 이름이 지나치게 길 때는 파일을 구체적으로 설명할 수 있습니다. PR 제목은 최대 80자이고 본문에 `Why`, `What`, `How to Test` 목록이 들어갑니다. `What`에는 변경 파일 경로가 있어야 하며 테스트 항목은 실행 결과가 아니라 제안 단계입니다. 응답 형식과 파일 근거를 검사합니다. JSON·필드·목록 형식, 빈 텍스트 또는 길이 오류는 한 번만 다시 생성하고, 두 번째 응답도 잘못되면 오류를 출력합니다. 파일 근거·문안 규칙·지원되지 않는 테스트 결과 주장은 다시 생성하지 않고 오류로 거부합니다. 문안은 선택된 diff에만 근거하므로 특히 diff가 잘렸다면 원본 변경 내용과 대조해 사용하세요.
 
-`main.py`가 진입점입니다. `b62/git_context.py`는 Git 변경 수집, `b62/safety.py`는 마스킹과 diff 제한, `b62/conventions.py`는 문안 규칙 로드, `b62/prompts.py`는 요청 문구 구성, `b62/limits.py`는 문안 길이 제한, `b62/generation.py`는 요청 데이터 구성·검증, `b62/api_client.py`는 API 전송, `b62/cli.py`는 명령 흐름을 담당합니다.
+`main.py`가 진입점입니다. `b62/git_context.py`는 Git 변경 수집, `b62/safety.py`는 마스킹과 diff 제한, `b62/conventions.py`는 문안 규칙 로드, `b62/prompts.py`는 요청 문구 구성, `b62/limits.py`는 문안 길이와 생성 시도 횟수 제한, `b62/generation.py`는 요청 데이터 구성·검증과 제한된 재생성, `b62/api_client.py`는 API 전송, `b62/cli.py`는 명령 흐름을 담당합니다.
 
 `make check`는 표준 라이브러리만으로 구문 컴파일, 모듈 import, CLI 도움말을 확인하는 기본 스모크 검사입니다. 실제 생성 흐름이나 API 동작 전체를 검증하지는 않습니다. `make clean`은 프로젝트 루트와 `b62`의 지정된 캐시 경로를 즉시 삭제하며 심볼릭 링크와 심볼릭 링크 아래 경로는 건너뜁니다.
 

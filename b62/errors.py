@@ -7,3 +7,7 @@ class GitError(Exception):
 
 class GenerationError(Exception):
     """Generation failed without disclosing response or credential data."""
+
+
+class OutputFormatError(GenerationError):
+    """Generated text has a correctable JSON, field, or length failure."""

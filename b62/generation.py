@@ -19,19 +19,16 @@ DEFAULT_MODEL = "gpt-5-mini"
 
 _CONTROL_WHITESPACE = re.compile(r"[\r\n\t\f\v\u2028\u2029]+")
 _FILE_WORD = re.compile(r"\bfile\b", re.IGNORECASE)
-_HANGUL = re.compile(r"[가-힣]")
-_LATIN = re.compile(r"[A-Za-z]")
 _UNSUPPORTED_TEST_CLAIM = re.compile(
     r"\b(?:tests? (?:passed|ran|were run|succeeded)|verified|validation passed|"
     r"all checks pass(?:ed)?)\b", re.IGNORECASE
 )
 
 def build_request(task: str, context: dict[str, object], model: str,
-                  temperature: float | None, max_tokens: int | None,
-                  convention: dict[str, str] | None = None) -> dict[str, object]:
+                  temperature: float | None, max_tokens: int | None) -> dict[str, object]:
     diff = str(context["diff"])
     paths = changed_paths(diff)
-    system = system_message(task, convention, "truncation" in context)
+    system = system_message(task, "truncation" in context)
     user = json.dumps({"selection": context["selection"], "changed_paths": paths,
                        "diff": diff,
                        **({"truncation": context["truncation"]} if "truncation" in context else {})},
@@ -61,7 +58,6 @@ def _items(value: object, label: str) -> list[str]:
     return [_single_line(item, label, PR_ITEM_LIMIT) for item in value]
 
 def validate_output(task: str, content: str, diff: str,
-                    convention: dict[str, str] | None = None,
                     mask_text=None) -> str:
     try:
         data = json.loads(content)
@@ -81,7 +77,6 @@ def validate_output(task: str, content: str, diff: str,
         subject = _single_line(data["subject"], "subject", COMMIT_SUBJECT_LIMIT)
         output = subject
         grounding = subject
-        heading = subject
     else:
         if set(data) != {"title", "why", "what", "how_to_test"}:
             raise OutputFormatError("Invalid generated PR fields.")
@@ -90,7 +85,6 @@ def validate_output(task: str, content: str, diff: str,
         what = _items(data["what"], "What")
         how = _items(data["how_to_test"], "How to Test")
         grounding = " ".join(what)
-        heading = title
         output = "\n".join([title, "", "## Why", *[f"- {x}" for x in why],
                             "", "## What", *[f"- {x}" for x in what],
                             "", "## How to Test", *[f"- {x}" for x in how]])
@@ -99,30 +93,13 @@ def validate_output(task: str, content: str, diff: str,
     rendered_paths = [_CONTROL_WHITESPACE.sub(" ", path) for path in paths]
     path_names = [_CONTROL_WHITESPACE.sub(" ", Path(path).name) for path in paths]
     if task == "commit":
-        prefix = f'{convention["type"]}({convention["scope"]}): ' if convention else ""
-        fits = [name for name in path_names if len(name) <= COMMIT_SUBJECT_LIMIT - len(prefix)]
+        fits = [name for name in path_names if len(name) <= COMMIT_SUBJECT_LIMIT]
         grounded = (any(name and name in grounding for name in fits)
                     if fits else bool(_FILE_WORD.search(grounding)))
     else:
         grounded = any(path and path in grounding for path in rendered_paths)
     if not grounded:
         raise GenerationError("Invalid generated output: no changed file referenced.")
-    if convention:
-        prefix = f'{convention["type"]}({convention["scope"]}): '
-        if not heading.startswith(prefix):
-            raise GenerationError("Invalid generated output: convention prefix mismatch.")
-        description = heading[len(prefix):]
-        if not description or description != description.strip():
-            raise GenerationError("Invalid generated output: empty convention description.")
-        if convention["language"] == "ko":
-            language_ok = bool(_HANGUL.search(description))
-        else:
-            language_ok = bool(_LATIN.search(description)) and not _HANGUL.search(description)
-        first = next((ch for ch in description if ch.isalpha()), "")
-        style_ok = (first == first.lower() if convention["style"] == "lowercase"
-                    else first == first.upper())
-        if not language_ok or not first or not style_ok or description.endswith("."):
-            raise GenerationError("Invalid generated output: convention language or style mismatch.")
     if _UNSUPPORTED_TEST_CLAIM.search(output):
         raise GenerationError("Invalid generated output: unsupported test-result claim.")
     return output
@@ -130,7 +107,7 @@ def validate_output(task: str, content: str, diff: str,
 
 def generate_validated_output(
         task: str, request: dict[str, object], key: str, diff: str,
-        convention: dict[str, str] | None = None, mask_text=None,
+        mask_text=None,
         api_call: Callable[[dict[str, object], str], str] | None = None) -> str:
     """Regenerate a format failure once; transport and semantic failures stop."""
     transport = call_api if api_call is None else api_call
@@ -139,7 +116,7 @@ def generate_validated_output(
         # Transport errors are outside the validation catch and never retried.
         content = transport(attempt_request, key)
         try:
-            return validate_output(task, content, diff, convention, mask_text)
+            return validate_output(task, content, diff, mask_text)
         except OutputFormatError:
             if attempt + 1 == GENERATION_ATTEMPT_LIMIT:
                 raise

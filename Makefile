@@ -13,7 +13,7 @@ commit pr preview-commit preview-pr:
 
 check:
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -B -c 'from pathlib import Path; files = [Path("main.py"), *Path("b62").glob("*.py")]; [compile(path.read_bytes(), str(path), "exec") for path in files]; print(f"Syntax OK: {len(files)} files")'
-	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -B -c 'import main, b62.cli, b62.conventions, b62.errors, b62.generation, b62.git_context, b62.safety; print("Imports OK")'
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -B -c 'import main, b62.cli, b62.errors, b62.generation, b62.git_context, b62.safety; print("Imports OK")'
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -B main.py --help > /dev/null
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -B main.py commit --help > /dev/null
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -B main.py pr --help > /dev/null

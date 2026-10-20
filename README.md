@@ -38,19 +38,11 @@ make pr REPO='/path/to/target repo' ARGS='--staged'
 
 `--temperature`는 0부터 2까지의 유한한 숫자, `--max-tokens`는 양의 정수를 받아 API 요청에 전달합니다. `--model`은 비어 있지 않아야 합니다. 각 명령의 전체 옵션은 `commit --help` 또는 `pr --help`에서 볼 수 있습니다.
 
-`--convention path.json`은 다음과 같이 네 문자열 필드가 정확히 있는 선택적 JSON 파일을 읽습니다.
-
-```json
-{"type":"feat","scope":"example","language":"en","style":"lowercase"}
-```
-
-`type`은 `feat`, `fix`, `docs`, `refactor`, `test`, `chore` 중 하나입니다. `scope`는 영문 소문자로 시작하고 소문자·숫자·하이픈으로 이루어진 1~20자 문자열입니다. `language`는 `en` 또는 `ko`, `style`은 `lowercase` 또는 `sentence`입니다. 제목은 `type(scope): `로 시작해야 합니다. 설명 부분에서 `en`은 영문자를 포함하고 한글을 포함하지 않아야 하며, `ko`는 한글을 포함해야 합니다. 첫 글자의 대소문자와 끝 마침표도 기계적으로 검사하지만 완전한 문법 검사는 아닙니다. 파일이 없거나 형식이 잘못되면 API 키 조회 전에 오류가 납니다.
-
 ## 출력과 한계
 
 `commit` 생성이 성공하면 `## Commit` 헤더를 한 번 출력한 뒤 검증된 커밋 제목을 출력합니다. 커밋 제목은 최대 72자이며 변경 파일 이름을 포함해야 합니다. 표시용 헤더는 제목 길이 제한에 포함되지 않습니다. 파일 이름이 지나치게 길 때는 파일을 구체적으로 설명할 수 있습니다. PR 제목은 최대 80자이고 본문에 `Why`, `What`, `How to Test` 목록이 들어갑니다. `What`에는 변경 파일 경로가 있어야 하며 테스트 항목은 실행 결과가 아니라 제안 단계입니다. 응답 형식과 파일 근거를 검사합니다. JSON·필드·목록 형식, 빈 텍스트 또는 길이 오류는 한 번만 다시 생성하고, 두 번째 응답도 잘못되면 오류를 출력합니다. 파일 근거·문안 규칙·지원되지 않는 테스트 결과 주장은 다시 생성하지 않고 오류로 거부합니다. 문안은 선택된 diff에만 근거하므로 특히 diff가 잘렸다면 원본 변경 내용과 대조해 사용하세요.
 
-`main.py`가 진입점입니다. `b62/git_context.py`는 Git 변경 수집, `b62/safety.py`는 마스킹과 diff 제한, `b62/conventions.py`는 문안 규칙 로드, `b62/prompts.py`는 요청 문구 구성, `b62/limits.py`는 문안 길이와 생성 시도 횟수 제한, `b62/generation.py`는 요청 데이터 구성·검증과 제한된 재생성, `b62/api_client.py`는 API 전송, `b62/cli.py`는 명령 흐름을 담당합니다.
+`main.py`가 진입점입니다. `b62/git_context.py`는 Git 변경 수집, `b62/safety.py`는 마스킹과 diff 제한, `b62/prompts.py`는 요청 문구 구성, `b62/limits.py`는 문안 길이와 생성 시도 횟수 제한, `b62/generation.py`는 요청 데이터 구성·검증과 제한된 재생성, `b62/api_client.py`는 API 전송, `b62/cli.py`는 명령 흐름을 담당합니다.
 
 `make check`는 표준 라이브러리만으로 구문 컴파일, 모듈 import, CLI 도움말을 확인하는 기본 스모크 검사입니다. 실제 생성 흐름이나 API 동작 전체를 검증하지는 않습니다. `make clean`은 프로젝트 루트와 `b62`의 지정된 캐시 경로를 즉시 삭제하며 심볼릭 링크와 심볼릭 링크 아래 경로는 건너뜁니다.
 

@@ -9,7 +9,6 @@ from pathlib import Path
 
 from .api_client import call_api
 from .cli_args import parse_cli_args
-from .conventions import load_convention
 from .errors import GenerationError, GitError
 from .generation import build_request, generate_validated_output
 from .git_context import collect_context
@@ -22,12 +21,6 @@ COMMIT_HEADER = "## Commit"
 
 def run(argv: list[str] | None = None) -> int:
     args = parse_cli_args(argv)
-    try:
-        convention = load_convention(args.convention)
-    except GenerationError as exc:
-        print(f"Error: {exc}", file=sys.stderr)
-        return EXIT_ERROR
-
     try:
         context = collect_context(Path.cwd(), args.staged)
     except GitError as exc:
@@ -46,9 +39,7 @@ def run(argv: list[str] | None = None) -> int:
         )
     if context["diff"]:
         proposed_input["request"] = build_request(
-            args.command, context, args.model, args.temperature, args.max_tokens, convention)
-    if convention:
-        proposed_input["convention"] = convention
+            args.command, context, args.model, args.temperature, args.max_tokens)
     if args.dry_run:
         print(json.dumps(proposed_input, ensure_ascii=True, indent=JSON_INDENT))
         return EXIT_SUCCESS
@@ -62,7 +53,7 @@ def run(argv: list[str] | None = None) -> int:
         return EXIT_ERROR
     try:
         output = generate_validated_output(
-            args.command, proposed_input["request"], key, str(context["diff"]), convention,
+            args.command, proposed_input["request"], key, str(context["diff"]),
             mask_text=mask if args.safe_mode else None, api_call=call_api)
         if args.command == "commit":
             print(COMMIT_HEADER)

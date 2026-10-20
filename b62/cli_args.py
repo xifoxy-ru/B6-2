@@ -25,7 +25,6 @@ def parse_cli_args(argv: list[str] | None = None) -> argparse.Namespace:
         command.add_argument("--model", default=DEFAULT_MODEL)
         command.add_argument("--temperature", type=float)
         command.add_argument("--max-tokens", type=int)
-        command.add_argument("--convention", help="Path to a JSON convention config")
         command.add_argument("--safe-mode", action="store_true")
         command.add_argument("--max-files", type=int, default=DEFAULT_MAX_FILES)
         command.add_argument("--max-lines", type=int, default=DEFAULT_MAX_LINES)

@@ -31,7 +31,11 @@ def mask(value: str) -> str:
     return value
 
 def bounded_diff(diff: str, max_files: int, max_lines: int) -> tuple[str, dict[str, int]]:
-    lines = diff.splitlines(keepends=True)
+    # Git records end at LF; Unicode separators inside filenames are literal.
+    records = diff.split("\n")
+    lines = [record + "\n" for record in records[:-1]]
+    if records[-1]:
+        lines.append(records[-1])
     starts = [i for i, line in enumerate(lines) if line.startswith(DIFF_HEADER_PREFIX)]
     if not starts and lines:
         starts = [0]

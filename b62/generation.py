@@ -94,14 +94,17 @@ def validate_output(task: str, content: str, diff: str,
         output = "\n".join([title, "", "## Why", *[f"- {x}" for x in why],
                             "", "## What", *[f"- {x}" for x in what],
                             "", "## How to Test", *[f"- {x}" for x in how]])
-    path_names = [Path(path).name for path in paths]
+    # Ground against the same control-whitespace rendering as generated text.
+    # Ordinary spaces in filenames remain meaningful.
+    rendered_paths = [_CONTROL_WHITESPACE.sub(" ", path) for path in paths]
+    path_names = [_CONTROL_WHITESPACE.sub(" ", Path(path).name) for path in paths]
     if task == "commit":
         prefix = f'{convention["type"]}({convention["scope"]}): ' if convention else ""
         fits = [name for name in path_names if len(name) <= COMMIT_SUBJECT_LIMIT - len(prefix)]
         grounded = (any(name and name in grounding for name in fits)
                     if fits else bool(_FILE_WORD.search(grounding)))
     else:
-        grounded = any(path and path in grounding for path in paths)
+        grounded = any(path and path in grounding for path in rendered_paths)
     if not grounded:
         raise GenerationError("Invalid generated output: no changed file referenced.")
     if convention:

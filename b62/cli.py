@@ -13,6 +13,7 @@ from .errors import GenerationError, GitError
 from .generation import build_request, generate_validated_output
 from .git_context import collect_context
 from .safety import mask, safe_context
+from .safe_mode_output import save_safe_mode_diffs
 
 EXIT_SUCCESS = 0
 EXIT_ERROR = 2
@@ -30,7 +31,13 @@ def run(argv: list[str] | None = None) -> int:
         print(f"No {context['selection']} changes to prepare.")
         return EXIT_SUCCESS
     if args.safe_mode:
+        repository, before = Path(str(context["repository"])), str(context["diff"])
         context = safe_context(context, args.max_files, args.max_lines)
+        try:
+            save_safe_mode_diffs(repository, before, str(context["diff"]))
+        except GenerationError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return EXIT_ERROR
     proposed_input = {"task": args.command, **context}
     if context["untracked_paths"] and not context["diff"]:
         proposed_input["stage_hint"] = (

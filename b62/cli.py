@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import json
-import os
 import sys
 from pathlib import Path
 
 from .api_client import call_api
 from .cli_args import parse_cli_args
+from .credentials import get_api_key
 from .errors import GenerationError, GitError
 from .generation import build_request, generate_validated_output
 from .git_context import collect_context
@@ -47,11 +47,11 @@ def run(argv: list[str] | None = None) -> int:
         print("Error: Only untracked paths are present; stage files to include their contents.",
               file=sys.stderr)
         return EXIT_ERROR
-    key = os.environ.get("AI_API_KEY") or os.environ.get("OPENAI_API")
-    if not key:
-        print("Error: Set AI_API_KEY (or OPENAI_API) in the environment.", file=sys.stderr)
-        return EXIT_ERROR
     try:
+        key = get_api_key()
+        if not key:
+            print("Error: Set AI_API_KEY (or OPENAI_API) in the environment.", file=sys.stderr)
+            return EXIT_ERROR
         output = generate_validated_output(
             args.command, proposed_input["request"], key, str(context["diff"]),
             mask_text=mask if args.safe_mode else None, api_call=call_api)

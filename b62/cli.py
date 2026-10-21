@@ -17,7 +17,7 @@ from .safety import mask, safe_context
 EXIT_SUCCESS = 0
 EXIT_ERROR = 2
 JSON_INDENT = 2
-COMMIT_HEADER = "## Commit"
+COMMIT_HEADER = "## 커밋"
 
 def run(argv: list[str] | None = None) -> int:
     args = parse_cli_args(argv)

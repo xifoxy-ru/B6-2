@@ -7,6 +7,7 @@ import math
 
 from .generation import DEFAULT_MODEL
 
+SUPPORTED_MODELS = ("gpt-5-mini", "gpt-5.5", "gpt-5.4", "gpt-5.4-mini")
 DEFAULT_MAX_FILES = 10
 DEFAULT_MAX_LINES = 200
 MIN_TEMPERATURE = 0
@@ -22,7 +23,7 @@ def parse_cli_args(argv: list[str] | None = None) -> argparse.Namespace:
         command.add_argument("--staged", action="store_true", help="Use staged changes")
         command.add_argument("--dry-run", action="store_true",
                              help="Print proposed input locally without API or credential access")
-        command.add_argument("--model", default=DEFAULT_MODEL)
+        command.add_argument("--model", choices=SUPPORTED_MODELS, default=DEFAULT_MODEL)
         command.add_argument("--temperature", type=float)
         command.add_argument("--max-tokens", type=int)
         command.add_argument("--safe-mode", action="store_true")
@@ -35,8 +36,6 @@ def parse_cli_args(argv: list[str] | None = None) -> argparse.Namespace:
         parser.error("--temperature must be between 0 and 2")
     if args.max_tokens is not None and args.max_tokens < MIN_POSITIVE_COUNT:
         parser.error("--max-tokens must be positive")
-    if not args.model.strip():
-        parser.error("--model must be nonempty")
     if (args.max_files < MIN_POSITIVE_COUNT
             or args.max_lines < MIN_POSITIVE_COUNT):
         parser.error("--max-files and --max-lines must be positive")

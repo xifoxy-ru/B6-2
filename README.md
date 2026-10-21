@@ -20,7 +20,7 @@ make preview-commit
 make preview-pr ARGS='--staged'
 make commit
 make pr ARGS='--staged --safe-mode'
-make preview-commit REPO='/path/to/target repo' ARGS='--staged --model example-model'
+make preview-commit REPO='/path/to/target repo' ARGS='--staged --model gpt-5.4-mini'
 make pr REPO='/path/to/target repo' ARGS='--staged'
 ```
 
@@ -36,7 +36,7 @@ make pr REPO='/path/to/target repo' ARGS='--staged'
 
 `--safe-mode`는 diff와 표시 경로의 일반적인 API 키, `api_key`, `token`, `password`, 이메일 패턴을 가리고, 요청과 미리보기에 사용하는 diff를 제한합니다. 생성 문안과 Git 오류도 마스킹합니다. 정규식 기반 마스킹은 모든 비밀을 찾는다고 보장하지 않습니다. 이 모드의 미리보기에는 범위 밖 경로가 드러나지 않도록 상태 목록을 생략합니다. `--max-files`(기본 10)와 `--max-lines`(기본 200)는 safe mode에서 선택된 추적 파일 diff에 적용하는 양의 정수 제한입니다. 파일은 `diff --git` 구간, 줄은 헤더와 메타데이터를 포함한 물리적 diff 줄입니다. 앞에서부터 담으며 마지막 파일 구간은 줄 제한에서 잘릴 수 있습니다. `truncation`에 전체·포함·제외된 파일 구간과 줄 수를 표시합니다. 추적되지 않은 경로도 최대 `max-files`개만 표시하고 제외 수를 알려 줍니다. 생략된 변경 내용은 문안에서 추정하면 안 됩니다.
 
-`--temperature`는 0부터 2까지의 유한한 숫자, `--max-tokens`는 양의 정수를 받아 API 요청에 전달합니다. `--model`은 비어 있지 않아야 합니다. 각 명령의 전체 옵션은 `commit --help` 또는 `pr --help`에서 볼 수 있습니다.
+`--temperature`는 0부터 2까지의 유한한 숫자, `--max-tokens`는 양의 정수를 받아 API 요청에 전달합니다. `commit`과 `pr`의 `--model`은 `gpt-5-mini`(기본값), `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini` 중에서만 선택할 수 있습니다. 다른 값이나 빈 값은 Git 변경 조회와 API 요청 전에 인자 오류로 거부합니다. 각 명령의 전체 옵션은 `commit --help` 또는 `pr --help`에서 볼 수 있습니다.
 
 ## 출력과 한계
 
